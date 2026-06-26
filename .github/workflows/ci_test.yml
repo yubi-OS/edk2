@@ -8,11 +8,17 @@ name: ci_test
 # which is NOT present in the yubi-OS org. This fork (parent tianocore/edk2)
 # ships the StandaloneMM CORE package `StandaloneMmPkg/StandaloneMmPkg.dsc`
 # (verified on master: PLATFORM_NAME=StandaloneMm, SUPPORTED_ARCHITECTURES=AARCH64|X64).
-# So this fork-CI proves the StandaloneMM core cross-compiles for AARCH64/GCC5 in
+# So this fork-CI proves the StandaloneMM core cross-compiles for AARCH64 in
 # isolation (test.ci first). Producing the RPMB platform FD (BL32_AP_MM.fd) is an
 # integration-time step once edk2-platforms is added to the org — tracked for INT.
 #
 # BARE runner (no dhi container): the EDK2 C BaseTools + AARCH64 cross toolchain
+# need a full host libc/crt*.o that the hardened dhi base intentionally omits
+# (same lesson as the bcvk Rust CI). Action refs pinned per PINNED.md.
+#
+# Toolchain tag is GCC (not GCC5): current tianocore/edk2 master consolidated the
+# GCC48/GCC49/GCC5 tags into a single GCC tag (build.py rejects GCC5 as
+# 'Tool chain [GCC5] is not defined'). Cross prefix env is GCC_AARCH64_PREFIX.
 # need a full host libc/crt*.o that the hardened dhi base intentionally omits
 # (same lesson as the bcvk Rust CI). Action refs pinned per PINNED.md.
 
@@ -28,7 +34,7 @@ permissions:
 
 jobs:
   build-standalonemm:
-    name: StandaloneMM AARCH64 GCC5 (${{ matrix.arch }})
+    name: StandaloneMM AARCH64 GCC (${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
@@ -53,7 +59,9 @@ jobs:
             build-essential uuid-dev iasl nasm python3 python3-venv \
             gcc-aarch64-linux-gnu
 
-      # On the amd64 runner we cross-compile (GCC5_AARCH64_PREFIX=aarch64-linux-gnu-).
+      # On the amd64 runner we cross-compile (GCC_AARCH64_PREFIX=aarch64-linux-gnu-).
+      # On the native arm64 runner the host gcc IS aarch64, so the prefix is empty.
+      - name: Resolve GCC AARCH64 toolchain prefix
       # On the native arm64 runner the host gcc IS aarch64, so the prefix is empty.
       - name: Resolve GCC5 AARCH64 toolchain prefix
         id: tc
@@ -67,18 +75,18 @@ jobs:
       - name: Build BaseTools
         run: make -C BaseTools -j"$(nproc)"
 
-      - name: Build StandaloneMmPkg (AARCH64, GCC5, RELEASE)
+      - name: Build StandaloneMmPkg (AARCH64, GCC, RELEASE)
         run: |
-          export GCC5_AARCH64_PREFIX="${{ steps.tc.outputs.prefix }}"
+          export GCC_AARCH64_PREFIX="${{ steps.tc.outputs.prefix }}"
           set -x
           . ./edksetup.sh
-          build -a AARCH64 -t GCC5 -b RELEASE \
+          build -a AARCH64 -t GCC -b RELEASE \
             -p StandaloneMmPkg/StandaloneMmPkg.dsc \
             -n "$(nproc)"
 
       - name: Show StandaloneMM build outputs
         run: |
-          out="Build/StandaloneMm/RELEASE_GCC5/FV"
+          out="Build/StandaloneMm/RELEASE_GCC/FV"
           echo "== FV directory =="
           ls -la "$out" 2>/dev/null || echo "no FV dir (no FV defined for core dsc — module .efi are the artifacts)"
           echo "== StandaloneMM module .efi =="
