@@ -62,8 +62,6 @@ jobs:
       # On the amd64 runner we cross-compile (GCC_AARCH64_PREFIX=aarch64-linux-gnu-).
       # On the native arm64 runner the host gcc IS aarch64, so the prefix is empty.
       - name: Resolve GCC AARCH64 toolchain prefix
-      # On the native arm64 runner the host gcc IS aarch64, so the prefix is empty.
-      - name: Resolve GCC5 AARCH64 toolchain prefix
         id: tc
         run: |
           if [ "${{ matrix.arch }}" = "arm64" ]; then
